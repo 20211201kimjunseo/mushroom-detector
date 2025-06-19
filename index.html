@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>버섯 식별기</title>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f9f9f9;
+      padding: 40px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 36px;
+      color: #111;
+    }
+    .guide {
+      font-size: 20px;
+      margin: 20px auto;
+      max-width: 800px;
+      color: #444;
+    }
+    .warning {
+      color: #c00;
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 30px;
+    }
+    input[type="file"] {
+      font-size: 18px;
+      margin-top: 15px;
+    }
+    .description-container {
+      background: #fff;
+      padding: 25px;
+      border-radius: 10px;
+      max-width: 700px;
+      margin: 30px auto;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    .label {
+      font-size: 28px;
+      font-weight: bold;
+      color: #000;
+      margin-bottom: 15px;
+    }
+    .text {
+      font-size: 20px;
+      color: #333;
+      white-space: pre-line;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <h1>독버섯/식용버섯 식별기</h1>
+  <div class="guide">
+    아래에 버섯 사진을 업로드하면<br>
+    어떤 버섯인지 예측하고, 이름 + 설명 + 위험성(중요!)을 함께 알려줍니다.
+  </div>
+  <div class="warning">
+    중요! 예측 결과는 참고용입니다.<br>
+    실제 식용 여부는 반드시 전문가에게 확인하세요.
+  </div>
+
+  <input type="file" id="imageUpload" accept="image/*">
+  <div class="description-container">
+    <div class="label" id="result">예측 결과 없음</div>
+    <div class="text" id="description">버섯 사진을 업로드해주세요.</div>
+  </div>
+
+  <script>
+    const URL = "https://teachablemachine.withgoogle.com/models/P0aEmmNoR/";
+    let model;
+
+    async function init() {
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+      model = await tmImage.load(modelURL, metadataURL);
+    }
+
+    function getInfo(label) {
+      const info = {
+        "Galerina marginata": "이름: 가을황토버섯\n유형: 독버섯\n특징: 갈색 작은 갓을 가진 맹독성 버섯으로, 팽이버섯과 비슷합니다.\n위험성: 간과 신장 손상을 유발하며, 사망에 이를 수 있음.",
+        "Amanita muscaria": "이름: 광대버섯\n유형: 독버섯\n특징: 빨간 갓에 흰 점, 강한 환각 유발 물질 포함.\n위험성: 중추신경계 마비, 섭취 시 매우 위험함.",
+        "Amanita brunnescens": "이름: 녹색포자 우산버섯\n유형: 독버섯\n특징: 갈색~황갈색 매끄러운 갓, 식용과 혼동 쉬움.\n위험성: 구토·복통·설사 유발, 치명적 중독 가능성 있음.",
+        "Hericium erinaceus": "이름: 노루궁뎅이버섯\n유형: 식용버섯\n특징: 흰 털모양의 독특한 외형, 신경 재생과 위 건강에 도움.\n위험성: 특별한 독성 없음. 안전하게 섭취 가능.",
+        "Pleurotus ostreatus": "이름: 느타리버섯\n유형: 식용버섯\n특징: 회색 갓과 흰 줄기, 단백질·식이섬유 풍부.\n위험성: 특별한 독성 없음. 조리 후 섭취 권장."
+      };
+      return info[label] || "설명을 찾을 수 없습니다.";
+    }
+
+    document.getElementById("imageUpload").addEventListener("change", function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = async function() {
+          const prediction = await model.predict(img);
+          prediction.sort((a, b) => b.probability - a.probability);
+          const best = prediction[0];
+          document.getElementById("result").innerText = `예측 결과: ${best.className} (${(best.probability * 100).toFixed(1)}%)`;
+          document.getElementById("description").innerText = getInfo(best.className);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    window.onload = init;
+  </script>
+</body>
+</html>
