@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>독버섯/식용버섯 식별기</title>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f4f4f4;
+      padding: 40px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 36px;
+      color: #222;
+      margin-bottom: 20px;
+    }
+    .guide {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 30px;
+    }
+    .warning {
+      font-size: 22px;
+      font-weight: bold;
+      color: #b30000;
+      margin-bottom: 30px;
+    }
+    input[type="file"] {
+      font-size: 18px;
+      padding: 10px;
+      margin-bottom: 20px;
+    }
+    .description-container {
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      max-width: 700px;
+      margin: 30px auto;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    .description-container img {
+      max-width: 100%;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .label {
+      font-size: 28px;
+      font-weight: bold;
+      margin-top: 20px;
+      color: #111;
+    }
+    .text {
+      font-size: 22px;
+      margin-top: 20px;
+      color: #333;
+      white-space: pre-line;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <h1>독버섯/식용버섯 식별기</h1>
+  <div class="guide">
+    아래에 버섯 사진을 업로드하면<br>
+    어떤 버섯인지 예측하고, 이름 + 대표 사진 + 특징 + 위험성(중요!)까지 함께 보여줍니다.
+  </div>
+  <div class="warning">
+    중요! 예측 결과는 참고용입니다. 실제 식용 여부는 반드시 전문가에게 확인하세요.
+  </div>
+
+  <input type="file" id="imageUpload" accept="image/*">
+  <div class="description-container">
+    <img id="resultImage" src="" style="display:none;">
+    <div class="label" id="result">예측 결과 없음</div>
+    <div class="text" id="description"></div>
+  </div>
+
+  <script>
+    const URL = "https://teachablemachine.withgoogle.com/models/tPNbIdtka/";
+    let model, maxPredictions;
+
+    async function init() {
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+    }
+
+    function getInfo(label) {
+      const info = {
+        "양송이버섯": {
+          image: "10.png",
+          text: "이름: 양송이버섯\n특징: 흰 갓과 짧은 줄기의 식용버섯입니다.\n위험성: 특별한 위험은 없지만 익혀 먹는 것이 좋습니다."
+        },
+        "느타리버섯": {
+          image: "106.png",
+          text: "이름: 느타리버섯\n특징: 회색 갓, 흰 줄기. 단백질과 식이섬유 풍부한 식용버섯입니다.\n위험성: 특별한 독성은 없으나 세척 후 조리 권장."
+        },
+        "광대버섯": {
+          image: "Amanita muscaria_12.jpg",
+          text: "이름: 광대버섯\n특징: 빨간 갓과 흰 반점. 환각 및 구토 유발.\n위험성(중요!): 절대 섭취 금지. 소량도 치명적."
+        },
+        "가을황토버섯": {
+          image: "Galerina marginata_1.jpg",
+          text: "이름: 가을황토버섯\n특징: 노란-갈색 갓의 작은 맹독성 독버섯.\n위험성(중요!): 간 및 신장 손상 유발. 사망 사례 있음."
+        },
+        "녹색포자 우산버섯": {
+          image: "Amanita brunnescens_1.jpg",
+          text: "이름: 녹색포자 우산버섯\n특징: 황갈색 갓. 독성 강함.\n위험성(중요!): 위장 장애 유발. 식용버섯과 혼동 주의."
+        }
+      };
+      return info[label] || { image: '', text: '정보 없음' };
+    }
+
+    document.getElementById("imageUpload").addEventListener("change", function (event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.onload = async function () {
+          const prediction = await model.predict(img);
+          prediction.sort((a, b) => b.probability - a.probability);
+          const best = prediction[0];
+          const info = getInfo(best.className);
+
+          document.getElementById("result").innerText = `예측 결과: ${best.className} (${(best.probability * 100).toFixed(1)}%)`;
+          const resultImage = document.getElementById("resultImage");
+          resultImage.src = info.image;
+          resultImage.style.display = "block";
+          document.getElementById("description").innerText = info.text;
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    window.onload = init;
+  </script>
+</body>
+</html>
