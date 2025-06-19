@@ -1,0 +1,151 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>버섯 식별기</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  <style>
+    body { font-family:'Arial'; background:#f9f9f9; text-align:center; padding:40px; }
+    h1 { font-size:36px; color:#111; }
+    .guide { font-size:20px; margin:20px auto; max-width:800px; color:#444; }
+    .warning { color:#c00; font-size:22px; font-weight:bold; margin-bottom:30px; }
+    input[type="file"] { font-size:18px; margin-top:15px; }
+    .description-container { background:#fff; padding:25px; border-radius:10px; max-width:700px; margin:30px auto; box-shadow:0 0 15px rgba(0,0,0,0.1); }
+    .label { font-size:28px; font-weight:bold; color:#000; margin-bottom:15px; }
+    .text { font-size:18px; color:#333; white-space:pre-line; text-align:left; max-width:90%; margin:auto; }
+    img { max-width: 300px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>독버섯/식용버섯 식별기</h1>
+  <div class="guide">사진을 업로드하면 이름 + 설명 + 위험성(중요!)을 자동으로 알려줍니다.</div>
+  <div class="warning">중요! 결과는 참고용입니다. 실제 식용 여부는 전문가에게 확인하세요.</div>
+  <input type="file" id="imageUpload" accept="image/*">
+  <br>
+  <img id="preview" src="">
+  <div class="description-container">
+    <div class="label" id="result">예측 결과 없음</div>
+    <div class="text" id="description">사진을 올려주세요.</div>
+  </div>
+
+<script>
+const mushroomDescriptions = {
+  "Galerina marginata": `
+[독성]
+- α‑amanitin, γ‑amanitin 등 amatoxin 계열. RNA 폴리머라제 II 저해 → 간·신장 세포 파괴
+- 잠복기 6–12시간 후 구토·설사, 이후 급성 간·신장부전 발병
+- 끓여도 파괴되지 않으며, 소량으로도 치명적
+- 사망률: 조기 치료 시 10–15%, 지연 시 최대 90%
+- 주의: 어린이, 노약자, 간질환자
+
+[기타]
+- 자연 발생 장소: 나무 썩은 곳
+- 유사 식용버섯과 혼동 주의
+`,
+
+  "Amanita muscaria": `
+[독성]
+- ibotenic acid (신경흥분), muscimol (GABA 수용체 억제 작용)
+- 30분~3시간 이내 어지럼, 혼수, 경련, 구토, 환각 등
+- 끓이면 독성 일부 감소 가능
+- 사망 사례는 드물지만 고용량 섭취 시 존재
+- 주의: 정신질환자, 소아
+
+[기타]
+- 문화적으로 의식·환각 목적으로 쓰이기도 함
+`,
+
+  "Amanita brunnescens": `
+[독성]
+- 정확한 독성 정보 불명 (“possibly poisonous”)
+- 유독 Amanita 속 버섯과 형태가 유사해 혼동 위험
+- 전문가 판단 없이 절대 섭취 금지
+
+[기타]
+- 반복 섭취 시 희귀 자가면역 반응 보고된 바 있음
+`,
+
+  "Hericium erinaceus": `
+[영양 및 효능]
+- β-glucan: 면역 강화, 항산화
+- hericenones, erinacines: NGF(신경성장인자) 촉진 → 뇌신경 보호
+- 기억력, 우울증, 불안 완화, 위장 점막 보호
+
+[안전성]
+- 하루 1g 섭취 기준 16주 임상에서 이상 없음
+- 주의: 알레르기, 천식 환자 또는 혈당·항응고제 복용자는 의사 상담 권장
+`,
+
+  "Pleurotus ostreatus": `
+① 영양성분 – 완전한 균형
+- 100 g 생 28 kcal, 단백질 3g, 식이섬유 2g
+- β‑글루칸: 오트밀보다 2배 풍부
+- 비타민 B3 50%+, 비타민 D 166% RDA
+- 셀레늄, 철, 로바스타틴, 페놀산 포함
+
+② 심혈관 건강
+- LDL·중성지방↓, HDL↑, 혈당·혈압 조절 효과
+- 임상: 21일/3개월 섭취로 지표 유의 개선
+
+③ 항산화·면역
+- 갈릭산·클로로겐산 포함, NK세포 활성화
+- 감염 예방 및 면역 기능 강화
+
+④ 체중 및 장 건강
+- 포만감 증가, 장내 환경 개선, 단쇄지방산 생성
+
+⑤ 부작용
+- 포자 흡입 시 천식 가능성
+- 과다 섭취 시 복부 팽만·가스·설사 유발
+- 섭취 권장: 생 100–150g 또는 말린 30g 내외
+`
+};
+
+function getLongDescription(label) {
+  return mushroomDescriptions[label] || "설명 없음";
+}
+
+const mURL = "https://teachablemachine.withgoogle.com/models/P0aEmmNoR/";
+let mdl;
+
+async function init() {
+  try {
+    mdl = await tmImage.load(mURL + "model.json", mURL + "metadata.json");
+  } catch (e) {
+    document.getElementById("description").innerText = "모델 로딩 실패";
+    console.error(e);
+  }
+}
+
+document.getElementById("imageUpload").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const img = new Image();
+    img.onload = async function () {
+      document.getElementById("preview").src = img.src;
+      document.getElementById("result").innerText = "예측 중...";
+      try {
+        const prediction = await mdl.predict(img);
+        const best = prediction.sort((a,b)=>b.probability-a.probability)[0];
+        document.getElementById("result").innerText = `예측: ${best.className} (${(best.probability*100).toFixed(1)}%)`;
+        document.getElementById("description").innerText = getLongDescription(best.className);
+      } catch (err) {
+        document.getElementById("description").innerText = "예측 실패: 모델 오류";
+        console.error(err);
+      }
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+init();
+</script>
+</body>
+</html>
